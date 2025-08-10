@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>GemPlast Invoice —  Generator </title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--accent:#7c3aed;--muted:#94a3b8;--glass:rgba(255,255,255,0.04)}
+    *{box-sizing:border-box;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial}
+    body{margin:0;min-height:100vh;background:linear-gradient(180deg,#071029 0%,#08122a 60%);color:#e6eef8;padding:32px;display:flex;align-items:flex-start;justify-content:center}
+    .wrap{width:100%;max-width:1100px}
+    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+    .brand{display:flex;gap:12px;align-items:center}
+    .logo{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,var(--accent),#06b6d4);display:flex;align-items:center;justify-content:center;color:white;font-weight:700}
+    .title{font-size:18px;font-weight:700}
+    .subtitle{color:var(--muted);font-size:13px}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border-radius:14px;padding:20px;box-shadow:0 6px 30px rgba(2,6,23,0.6);border:1px solid rgba(255,255,255,0.03)}
+    form .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    input, textarea{width:100%;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:var(--glass);color:inherit;font-size:14px}
+    textarea{min-height:70px;resize:vertical}
+    .full{grid-column:1/-1}
+    .controls{display:flex;gap:10px;align-items:center;margin-top:14px}
+    button{background:var(--accent);color:white;padding:10px 14px;border:none;border-radius:10px;cursor:pointer;font-weight:600}
+    button.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06)}
+    .jsonout{margin-top:14px;padding:12px;border-radius:10px;background:#021025;color:#cde7ff;font-family:monospace;white-space:pre-wrap}
+    @media (max-width:900px){.grid{grid-template-columns:repeat(1,1fr)}.header{flex-direction:column;align-items:flex-start;gap:12px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <div class="brand">
+        <div class="logo">INV</div>
+        <div>
+          <div class="title">GemPlast Invoice —  Generator</div>
+          <div class="subtitle">Live JSON preview</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <form id="invForm" onsubmit="return false">
+        <div class="grid">
+          <div><label>Client Name</label><input id="client_name" /></div>
+          <div><label>Address</label><textarea id="address"></textarea></div>
+          <div><label>GST Number</label><input id="GST_number" /></div>
+          <div><label>Invoice #</label><input id="invoice" /></div>
+          <div><label>Date (Old)</label><input id="date_old" type="date" /></div>
+          <div><label>Date (New)</label><input id="date_new" type="date" /></div>
+          <div><label>Challan No</label><input id="challan_no" /></div>
+          <div><label>Description</label><input id="description" /></div>
+          <div></div>
+          <div><label>Quantity</label><input id="quantity" type="number" min="0" /></div>
+          <div><label>Per Rate</label><input id="per_rate" type="number" min="0" /></div>
+          <div><label>Amount</label><input id="amount" type="number" readonly /></div>
+          <div class="full"><label>Total</label><input id="total" readonly /></div>
+          <div><label>Tax Rate (%)</label><input id="taxRate" type="number" min="0" value="18" /></div>
+          <div><label>CGST</label><input id="CGST" readonly /></div>
+          <div><label>SGST</label><input id="SGST" readonly /></div>
+          <div class="full"><label>Rupees in words</label><input id="rupees_in_words" /></div>
+          <div class="full"><label>Grand Total</label><input id="grand_total" readonly /></div>
+        </div>
+        <div class="controls">
+          <button type="button" class="secondary" onclick="copyJSON()">Copy JSON</button>
+          <button type="button" class="secondary" onclick="downloadJSON()">Download JSON</button>
+        </div>
+        <div id="jsonout" class="jsonout"></div>
+      </form>
+    </div>
+  </div>
+
+<script>
+  function numberToWords(num){
+    if(num===0) return 'Zero'
+    const a=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen']
+    const b=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety']
+    function inHundreds(n){let str='';if(n>99){str+=a[Math.floor(n/100)]+' Hundred ';n%=100}if(n>19){str+=b[Math.floor(n/10)]+(n%10?' '+a[n%10]:'')}else if(n>0){str+=a[n]}return str.trim()}
+    const parts=[]
+    const crore=Math.floor(num/10000000);if(crore){parts.push(inHundreds(crore)+' Crore');num%=10000000}
+    const lakh=Math.floor(num/100000);if(lakh){parts.push(inHundreds(lakh)+' Lakh');num%=100000}
+    const thousand=Math.floor(num/1000);if(thousand){parts.push(inHundreds(thousand)+' Thousand');num%=1000}
+    if(num) parts.push(inHundreds(num));return parts.join(' ').trim()
+  }
+
+  function $(id){return document.getElementById(id)}
+
+  function recalc(){
+    const q=parseFloat($('quantity').value)||0
+    const rate=parseFloat($('per_rate').value)||0
+    const amount=q*rate
+    $('amount').value=amount
+    $('total').value=amount
+    const taxRate=parseFloat($('taxRate').value)||0
+    const tax=amount*(taxRate/100)
+    $('CGST').value=(tax/2).toFixed(2)
+    $('SGST').value=(tax/2).toFixed(2)
+    const grand=amount+tax
+    $('grand_total').value=grand.toFixed(2)
+    if(!$('rupees_in_words').value){$('rupees_in_words').value=numberToWords(Math.round(grand))}
+  }
+
+  function gather(){
+    return {
+      client_name:$('client_name').value,
+      address:$('address').value,
+      GST_number:$('GST_number').value,
+      invoice:$('invoice').value,
+      date_old:$('date_old').value,
+      date_new:$('date_new').value,
+      challan_no:$('challan_no').value,
+      description:$('description').value,
+      quantity:parseFloat($('quantity').value)||0,
+      per_rate:parseFloat($('per_rate').value)||0,
+      amount:parseFloat($('amount').value)||0,
+      total:parseFloat($('total').value)||0,
+      CGST:parseFloat($('CGST').value)||0,
+      SGST:parseFloat($('SGST').value)||0,
+      rupees_in_words:$('rupees_in_words').value,
+      grand_total:parseFloat($('grand_total').value)||0
+    }
+  }
+
+  function generateJSON(){
+    recalc()
+    $('jsonout').textContent=JSON.stringify(gather(),null,2)
+  }
+
+  function copyJSON(){navigator.clipboard.writeText(JSON.stringify(gather(),null,2))}
+  function downloadJSON(){const blob=new Blob([JSON.stringify(gather(),null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='invoice.json';a.click();URL.revokeObjectURL(url)}
+
+  document.querySelectorAll('#invForm input, #invForm textarea').forEach(el=>{el.addEventListener('input',generateJSON)})
+
+  window.onload=()=>{
+    $('client_name').value='James Cameron'
+    $('address').value='123 Main Street, Mumbai'
+    $('GST_number').value='27ABCDE1234F1Z5'
+    $('invoice').value='INV-2025-001'
+    $('date_old').value='2025-08-10'
+    $('date_new').value='2025-08-15'
+    $('challan_no').value='CH-1001'
+    $('description').value='Plastic Moulding Service'
+    $('quantity').value=1000
+    $('per_rate').value=3
+    generateJSON()
+  }
+</script>
+</body>
+</html>
